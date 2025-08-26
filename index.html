@@ -171,10 +171,10 @@
 
   // Auto-fire botão começa ON
   btnAuto.textContent = 'Auto 🔱: ON';
-  btnAuto.addEventListener('click', ()=>{ 
-    autoFire=!autoFire; 
-    btnAuto.textContent = `Auto 🔱: ${autoFire? 'ON':'OFF'}`; 
-    if(!autoFire) stopHoldFire(); 
+  btnAuto.addEventListener('click', ()=>{
+    autoFire=!autoFire;
+    btnAuto.textContent = `Auto 🔱: ${autoFire? 'ON':'OFF'}`;
+    if(!autoFire) stopHoldFire();
   });
 
   function shoot(){
@@ -197,8 +197,8 @@
     const size=70; const x = Math.random()*(W-size); const y = -size;
     const speed = 0.12 + Math.random()*0.08 + level*0.02; // cresce com nível
     const hp = 1 + Math.floor(level/3);
-    e.style.left = x+'px'; 
-    e.style.top = y+'px';   // <- moveremos por TOP (não por transform)
+    e.style.left = x+'px';
+    e.style.top = y+'px';   // moveremos por TOP (não por transform)
     enemies.push({x, y, vy:speed, hp, el:e});
   }
 
@@ -223,8 +223,9 @@
     // Movimento por teclado
     moveByKeys(dt);
 
-    // Auto-fire passivo
-    if(autoFire && (t - lastShot) > ( (t<rapidUntil)?110:shotEvery )) shoot();
+    // Auto-fire passivo (consistente com performance.now)
+    const now = performance.now();
+    if(autoFire && (now - lastShot) > ((now<rapidUntil)?110:shotEvery)) shoot();
 
     // Atualiza balas
     for(let i=bullets.length-1;i>=0;i--){
@@ -240,9 +241,9 @@
 
     // Atualiza inimigos (⬇️ por TOP, não por transform, para não brigar com a animação)
     for(let i=enemies.length-1;i>=0;i--){
-      const e = enemies[i]; 
-      e.y += e.vy*dt; 
-      e.el.style.top = e.y+'px'; 
+      const e = enemies[i];
+      e.y += e.vy*dt;
+      e.el.style.top = e.y+'px';
       e.el.style.left = e.x+'px';
 
       // Colisão com player
@@ -254,17 +255,42 @@
       if(e.y>H+80){ e.el.remove(); enemies.splice(i,1); }
     }
 
-    // Colisão bala x inimigo
+    // ✅ Colisão bala x inimigo (restaurado + melhorias de score)
     for(let i=enemies.length-1;i>=0;i--){
       const e = enemies[i];
       for(let j=bullets.length-1;j>=0;j--){
         const b = bullets[j];
         if(hit(e.x, e.y, 70, 70, b.x, b.y, 20, 36)){
-          e.hp--; addPop(b.x+10, b.y+10); b.el.remove(); bullets.splice(j,1);
+          e.hp--;
+          addPop(b.x+10, b.y+10);
+          b.el.remove();
+          bullets.splice(j,1);
+
           if(e.hp<=0){
-            addPop(e.x+35, e.y+35); e.el.remove(); enemies.splice(i,1);
-            score += 1; scoreEl.textContent = score;
-            if(score && score%12===0){ level++; levelEl.textContent = level; }
+            addPop(e.x+35, e.y+35);
+            e.el.remove();
+            enemies.splice(i,1);
+
+            // 🏆 Pontuação
+            score += 1; 
+            scoreEl.textContent = score;
+
+            // 🔱 tiros mais rápidos a cada 3 pontos (mínimo 100ms)
+            if(score % 3 === 0){
+              shotEvery = Math.max(100, shotEvery - 20);
+            }
+
+            // 💗 vida extra a cada 5 pontos
+            if(score % 5 === 0){
+              lives++;
+              livesEl.textContent = lives;
+            }
+
+            // ⚡ progressão de nível
+            if(score && score%12===0){
+              level++;
+              levelEl.textContent = level;
+            }
           }
           break;
         }
@@ -273,16 +299,16 @@
 
     // Power-ups (também por TOP pra consistência)
     for(let i=powers.length-1;i>=0;i--){
-      const p = powers[i]; 
-      p.y += p.vy*dt; 
-      p.el.style.top = p.y+'px'; 
+      const p = powers[i];
+      p.y += p.vy*dt;
+      p.el.style.top = p.y+'px';
       p.el.style.left=p.x+'px';
       if(hit(p.x, p.y, 46,46, px,py,80,80)){
-        if(p.type==='rapid'){ rapidUntil = performance.now()+7000; } 
-        else { 
-          shieldUntil = performance.now()+6000; 
-          player.classList.add('shield'); 
-          setTimeout(()=> player.classList.remove('shield'), 6000); 
+        if(p.type==='rapid'){ rapidUntil = performance.now()+7000; }
+        else {
+          shieldUntil = performance.now()+6000;
+          player.classList.add('shield');
+          setTimeout(()=> player.classList.remove('shield'), 6000);
         }
         addPop(px+40, py+40); p.el.remove(); powers.splice(i,1); continue;
       }
@@ -297,12 +323,12 @@
 
   function _tickTime(dt){
     if(timeLeft<=0) return;
-    _acc+=dt; 
-    if(_acc>=1000){ 
-      _acc-=1000; 
-      timeLeft--; 
-      timerEl.textContent = timeLeft; 
-      if(timeLeft<=0) endGame(); 
+    _acc+=dt;
+    if(_acc>=1000){
+      _acc-=1000;
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      if(timeLeft<=0) endGame();
     }
   }
   let _acc=0;
@@ -313,23 +339,23 @@
   }
   function flashPlayer(){ player.style.opacity='0.4'; setTimeout(()=> player.style.opacity='1', 120); }
 
-  function endGame(){ 
-    running=false; 
-    gameOver.classList.add('show'); 
-    finalStats.textContent = `Pontos: ${score} • Nível: ${level}`; 
-    btnResume.style.display='none'; 
+  function endGame(){
+    running=false;
+    gameOver.classList.add('show');
+    finalStats.textContent = `Pontos: ${score} • Nível: ${level}`;
+    btnResume.style.display='none';
   }
-  function restart(){ 
+  function restart(){
     bullets.forEach(b=>b.el.remove()); enemies.forEach(e=>e.el.remove()); powers.forEach(p=>p.el.remove());
     bullets=[]; enemies=[]; powers=[];
     running=true; timeLeft=60; score=0; lives=3; level=1; rapidUntil=0; shieldUntil=0; lastShot=0; lastSpawn=0; _acc=0;
     timerEl.textContent=timeLeft; scoreEl.textContent=score; livesEl.textContent=lives; levelEl.textContent=level;
-    px=W*0.5-40; py=H*0.75; clampPlayer(); 
-    gameOver.classList.remove('show'); 
+    px=W*0.5-40; py=H*0.75; clampPlayer();
+    gameOver.classList.remove('show');
   }
-  function togglePause(){ 
-    if(!running){ running=true; gameOver.classList.remove('show'); return; } 
-    running=false; btnResume.style.display='inline-flex'; gameOver.classList.add('show'); finalStats.textContent='Pausado'; 
+  function togglePause(){
+    if(!running){ running=true; gameOver.classList.remove('show'); return; }
+    running=false; btnResume.style.display='inline-flex'; gameOver.classList.add('show'); finalStats.textContent='Pausado';
   }
 
   btnRestart.addEventListener('click', restart);
