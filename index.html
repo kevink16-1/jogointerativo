@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Ataque das Sereias Sombrias — Shooter</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    /* tons ajustados pra “mar”, mantendo vibe neon */
+    --bg1:#001a33; --bg2:#002447; --bg3:#000c18;
+    --neon-cyan:#00f2ff; --neon-cyan-soft:#87f9ff;
+    --neon-pink:#ff69b4; --neon-magenta:#ff00ff; --magenta-deep:#3a0055;
+    --gold1:#fff7cc; --gold2:#ffd700;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; font-family:'Unbounded', cursive; background: radial-gradient(circle at 20% -10%, var(--bg1), var(--bg2) 40%, var(--bg3) 80%); color:#fff; }
+  h1{ position:absolute; top:8px; left:0; right:0; text-align:center; font-size:clamp(18px,3.6vw,30px); margin:0; z-index:20; text-shadow:0 0 10px var(--neon-cyan-soft), 0 0 20px var(--neon-cyan); }
+  #ui{ position:absolute; top:50px; left:0; right:0; display:flex; justify-content:center; gap:14px; z-index:20; font-size:16px; }
+  .pill{ padding:8px 12px; border-radius:999px; background:rgba(0,0,0,.35); border:1px solid rgba(135,249,255,.35); box-shadow: inset 0 0 12px rgba(0,242,255,.25), 0 0 12px rgba(0,242,255,.2); }
+  #game{ position:relative; width:100vw; height:100vh; overflow:hidden; touch-action:none; }
+
+  /* Bolhas (mantido) */
+  .bubble{ position:absolute; bottom:-100px; border-radius:50%; background:rgba(255,255,255,.35); filter: blur(0.2px); animation: floatUp linear infinite; }
+  @keyframes floatUp{ from{ transform:translateY(0); opacity:.8; } to{ transform:translateY(-120vh); opacity:0; } }
+
+  /* Player (agora SEREIA) */
+  #player{ position:absolute; width:80px; height:80px; border-radius:50%; background: radial-gradient(circle, var(--gold1), var(--gold2)); box-shadow:0 0 30px var(--gold1), inset 0 0 50px var(--gold2); display:flex; align-items:center; justify-content:center; font-size:34px; user-select:none; pointer-events:none; z-index:5; transition: transform .06s; }
+  #player.shield{ box-shadow:0 0 30px #aaf, 0 0 18px rgba(135,249,255,.8), inset 0 0 50px rgba(135,249,255,.5); }
+
+  /* Inimigos (tubarões) – mantive a bolha neon, mas conteúdo é 🦈 */
+  .enemy{ position:absolute; width:70px; height:70px; border-radius:50%; background: radial-gradient(circle at top left, #ff77ff, var(--magenta-deep)); border:2px solid var(--neon-magenta); box-shadow:0 0 25px #ff77ff, inset 0 0 15px #660066; display:flex; align-items:center; justify-content:center; font-size:34px; animation: flutuar 3s ease-in-out infinite alternate; }
+  @keyframes flutuar{ 0%{ transform:translateY(0) rotate(-5deg);} 50%{ transform:translateY(-12px) rotate(5deg);} 100%{ transform:translateY(0) rotate(-5deg);} }
+
+  /* Balas (tridentes) */
+  .bullet{ position:absolute; width:20px; height:36px; border-radius:10px; background: radial-gradient(circle at 50% 20%, var(--neon-cyan-soft), var(--neon-cyan)); box-shadow:0 0 16px var(--neon-cyan); display:flex; align-items:center; justify-content:center; font-size:18px; transform: translateY(0); }
+
+  /* Power-ups */
+  .power{ position:absolute; width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; background: radial-gradient(circle, rgba(255,105,180,.9), rgba(155,0,255,.9)); box-shadow:0 0 18px var(--neon-pink), inset 0 0 8px var(--neon-magenta); }
+
+  /* Explosão simples */
+  .pop{ position:absolute; width:20px; height:20px; border-radius:50%; background: radial-gradient(circle, #fff, var(--neon-pink)); box-shadow:0 0 20px var(--neon-pink); animation: pop .35s ease-out forwards; pointer-events:none; }
+  @keyframes pop{ from{ transform:scale(.6); opacity:1; } to{ transform:scale(2.2); opacity:0; } }
+
+  /* HUD inferior */
+  #controls{ position:absolute; bottom:16px; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:0 14px; z-index:30; }
+  .btn{ border:none; border-radius:16px; padding:10px 14px; font-weight:700; background:rgba(0,0,0,.45); color:#fff; box-shadow: inset 0 0 12px rgba(255,105,180,.25), 0 0 10px rgba(255,105,180,.3); backdrop-filter: blur(6px); cursor:pointer; }
+  .fire{ width:90px; height:90px; border-radius:50%; font-size:18px; display:flex; align-items:center; justify-content:center; }
+  .toggle{ font-size:12px; padding:8px 10px; }
+
+  /* Painel de fim de jogo */
+  #gameOver{ position:absolute; inset:0; background:rgba(0,0,0,.82); display:none; align-items:center; justify-content:center; flex-direction:column; z-index:50; text-align:center; }
+  #gameOver.show{ display:flex; }
+  #gameOver .actions{ margin-top:18px; display:flex; gap:10px; }
+
+  /* Dicas topo-direita */
+  #tips{ position:absolute; top:8px; right:10px; z-index:20; font-size:12px; opacity:.85; text-align:right; }
+</style>
+</head>
+<body>
+  <h1>🌊 Guerreira do mar — Modo Tiro 🌊</h1>
+  <div id="ui">
+    <div class="pill">⏳ Tempo: <span id="timer">60</span>s</div>
+    <div class="pill">🎯 Pontos: <span id="score">0</span></div>
+    <div class="pill">💗 Vidas: <span id="lives">3</span></div>
+    <div class="pill">⚡ Nível: <span id="level">1</span></div>
+  </div>
+  <div id="tips" class="pill">Dica: arraste a <b>sereia</b> para mover. Auto 🔱: ON.<br/>Teclado: WASD/↕↔ + Espaço.</div>
+
+  <div id="game">
+    <div id="player">🧜‍♀️</div>
+    <div id="gameOver">
+      <div style="font-size:28px; text-shadow:0 0 12px var(--neon-cyan-soft),0 0 24px var(--neon-cyan);">Fim de jogo!</div>
+      <div id="finalStats" style="margin-top:6px; font-size:15px;"></div>
+      <div class="actions">
+        <button class="btn" id="btnRestart">🔁 Reiniciar</button>
+        <button class="btn" id="btnResume" style="display:none;">▶️ Continuar</button>
+      </div>
+    </div>
+    <!-- controles -->
+    <div id="controls">
+      <button class="btn toggle" id="btnAuto">Auto 🔱: ON</button>
+      <button class="btn fire" id="btnFire">🔱</button>
+    </div>
+  </div>
+
+<script>
+(()=>{
+  const game = document.getElementById('game');
+  const player = document.getElementById('player');
+  const timerEl = document.getElementById('timer');
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const levelEl = document.getElementById('level');
+  const gameOver = document.getElementById('gameOver');
+  const finalStats = document.getElementById('finalStats');
+  const btnRestart = document.getElementById('btnRestart');
+  const btnResume = document.getElementById('btnResume');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnFire = document.getElementById('btnFire');
+
+  // Estado do jogo
+  let W = window.innerWidth, H = window.innerHeight;
+  let px = W*0.5-40, py = H*0.75; // posição player
+  let bullets = []; // {x,y,vy,el}
+  let enemies = []; // {x,y,vy,hp,el}
+  let powers = [];  // {x,y,vy,type,el}
+  let running = true, timeLeft = 60, score = 0, lives = 3, level = 1;
+  let lastSpawn = 0, spawnEvery = 800; // ms
+  let lastShot = 0, shotEvery = 260; // ms
+  let autoFire = true;               // 🔫 agora começa LIGADO
+  let rapidUntil = 0; // timestamp
+  let shieldUntil = 0; // timestamp
+
+  // Ajuste responsivo
+  function onResize(){ W = window.innerWidth; H = window.innerHeight; clampPlayer(); }
+  window.addEventListener('resize', onResize);
+
+  // Bolhas de fundo (parallax)
+  function spawnBubble(){
+    const b = document.createElement('div'); b.className='bubble';
+    const size = Math.random()*22+10; b.style.width = b.style.height = size+'px';
+    b.style.left = (Math.random()*W)+'px'; b.style.animationDuration = (Math.random()*10+6)+'s';
+    b.style.opacity = 0.35 + Math.random()*0.4; game.appendChild(b);
+    setTimeout(()=> b.remove(), 16000);
+  }
+  setInterval(spawnBubble, 600);
+
+  // Helper: criar elemento
+  const make = (cls, html='')=>{ const d=document.createElement('div'); d.className=cls; d.innerHTML=html; game.appendChild(d); return d; };
+
+  // Inicializar player
+  function drawPlayer(){ player.style.transform = `translate(${px}px, ${py}px)`; }
+  function clampPlayer(){ px = Math.max(0, Math.min(W-80, px)); py = Math.max(0, Math.min(H-80, py)); drawPlayer(); }
+  drawPlayer();
+
+  // Controles por toque/arraste
+  let dragging = false;
+  game.addEventListener('pointerdown', (e)=>{
+    if(e.pointerType==='mouse' && e.button!==0) return;
+    dragging = true; moveTo(e.clientX, e.clientY);
+  });
+  game.addEventListener('pointermove', (e)=>{ if(dragging){ moveTo(e.clientX, e.clientY); }});
+  game.addEventListener('pointerup', ()=> dragging=false);
+  game.addEventListener('pointercancel', ()=> dragging=false);
+
+  function moveTo(cx, cy){ px = cx-40; py = cy-40; clampPlayer(); }
+
+  // Teclado
+  const keys = new Set();
+  window.addEventListener('keydown', (e)=>{ keys.add(e.code); if(e.code==='Space'){ shoot(); } if(e.code==='Escape'){ togglePause(); }});
+  window.addEventListener('keyup', (e)=>{ keys.delete(e.code); });
+
+  function moveByKeys(dt){
+    const v = 0.48 * dt; // velocidade px/ms
+    if(keys.has('ArrowLeft')||keys.has('KeyA')) px -= v;
+    if(keys.has('ArrowRight')||keys.has('KeyD')) px += v;
+    if(keys.has('ArrowUp')||keys.has('KeyW')) py -= v;
+    if(keys.has('ArrowDown')||keys.has('KeyS')) py += v;
+    clampPlayer();
+  }
+
+  // Disparo
+  btnFire.addEventListener('pointerdown', ()=>{ shoot(); autoFire && startHoldFire(); });
+  btnFire.addEventListener('pointerup', stopHoldFire);
+  btnFire.addEventListener('pointerleave', stopHoldFire);
+
+  let holdTimer=null;
+  function startHoldFire(){ stopHoldFire(); holdTimer = setInterval(shoot, Math.max(90, shotEvery)); }
+  function stopHoldFire(){ if(holdTimer){ clearInterval(holdTimer); holdTimer=null; } }
+
+  // Auto-fire botão começa ON
+  btnAuto.textContent = 'Auto 🔱: ON';
+  btnAuto.addEventListener('click', ()=>{ 
+    autoFire=!autoFire; 
+    btnAuto.textContent = `Auto 🔱: ${autoFire? 'ON':'OFF'}`; 
+    if(!autoFire) stopHoldFire(); 
+  });
+
+  function shoot(){
+    const now = performance.now();
+    const cadence = now<rapidUntil ? 110 : shotEvery; // mais rápido no power-up ⚡
+    if(now - lastShot < cadence) return;
+    lastShot = now;
+    // dois tiros levemente abertos
+    const b1 = make('bullet','🔱'); const b2 = make('bullet','🔱');
+    const bx = px+30, by = py-6;
+    Object.assign(b1.style, {transform:`translate(${bx}px, ${by}px)`});
+    Object.assign(b2.style, {transform:`translate(${bx+18}px, ${by}px)`});
+    bullets.push({x:bx, y:by, vy: -0.72, el:b1});
+    bullets.push({x:bx+18, y:by, vy: -0.72, el:b2});
+  }
+
+  // Inimigos (tubarões 🦈)
+  function spawnEnemy(){
+    const e = make('enemy','🦈');
+    const size=70; const x = Math.random()*(W-size); const y = -size;
+    const speed = 0.12 + Math.random()*0.08 + level*0.02; // cresce com nível
+    const hp = 1 + Math.floor(level/3);
+    e.style.left = x+'px'; 
+    e.style.top = y+'px';   // <- moveremos por TOP (não por transform)
+    enemies.push({x, y, vy:speed, hp, el:e});
+  }
+
+  // Power-ups
+  function spawnPower(x){
+    const p = make('power');
+    const types = ['rapid','shield'];
+    const type = types[Math.random()<0.5?0:1];
+    p.innerHTML = type==='rapid' ? '⚡' : '🛡️';
+    const y=-40; p.style.left=x+'px'; p.style.top=y+'px';
+    powers.push({x, y, vy:0.16, type, el:p});
+  }
+
+  function addPop(x,y){ const p = make('pop'); p.style.left=x+'px'; p.style.top=y+'px'; setTimeout(()=>p.remove(), 350); }
+
+  // Loop principal
+  let prev = performance.now();
+  function loop(t){
+    if(!running){ requestAnimationFrame(loop); return; }
+    const dt = t - prev; prev = t;
+
+    // Movimento por teclado
+    moveByKeys(dt);
+
+    // Auto-fire passivo
+    if(autoFire && (t - lastShot) > ( (t<rapidUntil)?110:shotEvery )) shoot();
+
+    // Atualiza balas
+    for(let i=bullets.length-1;i>=0;i--){
+      const b = bullets[i]; b.y += b.vy*dt; if(b.y < -40){ b.el.remove(); bullets.splice(i,1); continue; }
+      b.el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+    }
+
+    // Spawns
+    if(t - lastSpawn > Math.max(220, spawnEvery - level*30)){
+      lastSpawn = t; spawnEnemy();
+      if(Math.random()<0.12) spawnPower(Math.random()*(W-46));
+    }
+
+    // Atualiza inimigos (⬇️ por TOP, não por transform, para não brigar com a animação)
+    for(let i=enemies.length-1;i>=0;i--){
+      const e = enemies[i]; 
+      e.y += e.vy*dt; 
+      e.el.style.top = e.y+'px'; 
+      e.el.style.left = e.x+'px';
+
+      // Colisão com player
+      if(hit(e.x, e.y, 70, 70, px, py, 80, 80)){
+        if(performance.now() < shieldUntil){ addPop(px+40, py+40); e.el.remove(); enemies.splice(i,1); continue; }
+        damage(); e.el.remove(); enemies.splice(i,1); continue;
+      }
+      // Saiu da tela
+      if(e.y>H+80){ e.el.remove(); enemies.splice(i,1); }
+    }
+
+    // Colisão bala x inimigo
+    for(let i=enemies.length-1;i>=0;i--){
+      const e = enemies[i];
+      for(let j=bullets.length-1;j>=0;j--){
+        const b = bullets[j];
+        if(hit(e.x, e.y, 70, 70, b.x, b.y, 20, 36)){
+          e.hp--; addPop(b.x+10, b.y+10); b.el.remove(); bullets.splice(j,1);
+          if(e.hp<=0){
+            addPop(e.x+35, e.y+35); e.el.remove(); enemies.splice(i,1);
+            score += 1; scoreEl.textContent = score;
+            if(score && score%12===0){ level++; levelEl.textContent = level; }
+          }
+          break;
+        }
+      }
+    }
+
+    // Power-ups (também por TOP pra consistência)
+    for(let i=powers.length-1;i>=0;i--){
+      const p = powers[i]; 
+      p.y += p.vy*dt; 
+      p.el.style.top = p.y+'px'; 
+      p.el.style.left=p.x+'px';
+      if(hit(p.x, p.y, 46,46, px,py,80,80)){
+        if(p.type==='rapid'){ rapidUntil = performance.now()+7000; } 
+        else { 
+          shieldUntil = performance.now()+6000; 
+          player.classList.add('shield'); 
+          setTimeout(()=> player.classList.remove('shield'), 6000); 
+        }
+        addPop(px+40, py+40); p.el.remove(); powers.splice(i,1); continue;
+      }
+      if(p.y>H+60){ p.el.remove(); powers.splice(i,1); }
+    }
+
+    // Timer
+    _tickTime(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  function _tickTime(dt){
+    if(timeLeft<=0) return;
+    _acc+=dt; 
+    if(_acc>=1000){ 
+      _acc-=1000; 
+      timeLeft--; 
+      timerEl.textContent = timeLeft; 
+      if(timeLeft<=0) endGame(); 
+    }
+  }
+  let _acc=0;
+
+  function damage(){
+    if(performance.now()<shieldUntil) return;
+    lives--; livesEl.textContent = lives; flashPlayer(); if(lives<=0) endGame();
+  }
+  function flashPlayer(){ player.style.opacity='0.4'; setTimeout(()=> player.style.opacity='1', 120); }
+
+  function endGame(){ 
+    running=false; 
+    gameOver.classList.add('show'); 
+    finalStats.textContent = `Pontos: ${score} • Nível: ${level}`; 
+    btnResume.style.display='none'; 
+  }
+  function restart(){ 
+    bullets.forEach(b=>b.el.remove()); enemies.forEach(e=>e.el.remove()); powers.forEach(p=>p.el.remove());
+    bullets=[]; enemies=[]; powers=[];
+    running=true; timeLeft=60; score=0; lives=3; level=1; rapidUntil=0; shieldUntil=0; lastShot=0; lastSpawn=0; _acc=0;
+    timerEl.textContent=timeLeft; scoreEl.textContent=score; livesEl.textContent=lives; levelEl.textContent=level;
+    px=W*0.5-40; py=H*0.75; clampPlayer(); 
+    gameOver.classList.remove('show'); 
+  }
+  function togglePause(){ 
+    if(!running){ running=true; gameOver.classList.remove('show'); return; } 
+    running=false; btnResume.style.display='inline-flex'; gameOver.classList.add('show'); finalStats.textContent='Pausado'; 
+  }
+
+  btnRestart.addEventListener('click', restart);
+  btnResume.addEventListener('click', ()=>{ running=true; gameOver.classList.remove('show'); });
+
+  // Util colisão AABB
+  function hit(x1,y1,w1,h1,x2,y2,w2,h2){ return !(x1+w1<x2 || x1>x2+w2 || y1+h1<y2 || y1>y2+h2); }
+})();
+</script>
+</body>
+</html>
